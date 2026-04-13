@@ -118,6 +118,9 @@ class AutoResponder:
         conversation_history: list[dict] | None = None,
     ) -> str | None:
         """Generate a reply with Gemini and truncate to the target length."""
+        if self._is_dc_charging_map_request(message):
+            return self._dc_charging_map_response(message_type=message_type, max_length=max_length)
+
         system = f"""{PBEV_SYSTEM_CONTEXT}
 
 REGRAS ADICIONAIS PARA RESPOSTAS AUTOMATICAS:
@@ -156,7 +159,7 @@ REGRAS ADICIONAIS PARA RESPOSTAS AUTOMATICAS:
             text = response.text.strip()
 
             if len(text) > max_length:
-                text = text[: max_length - 3].rsplit(" ", 1)[0] + "..."
+                text = self._truncate_response(text, max_length)
 
             return text
         except Exception as e:
@@ -195,8 +198,79 @@ REGRAS ADICIONAIS PARA RESPOSTAS AUTOMATICAS:
 
     def _is_spam(self, text: str) -> bool:
         """Detect spammy messages."""
-        text_lower = text.lower()
-        return any(kw in text_lower for kw in SPAM_KEYWORDS)
+        normalized = self._normalize_text(text)
+        return any(self._normalize_text(kw) in normalized for kw in SPAM_KEYWORDS)
+
+    @staticmethod
+    def _truncate_response(text: str, max_length: int) -> str:
+        """Trim a reply without cutting words abruptly."""
+        if len(text) <= max_length:
+            return text
+        return text[: max_length - 3].rsplit(" ", 1)[0] + "..."
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        """Normalize text for simple keyword matching."""
+        replacements = str.maketrans(
+            {
+                "á": "a",
+                "à": "a",
+                "â": "a",
+                "ã": "a",
+                "é": "e",
+                "ê": "e",
+                "í": "i",
+                "ó": "o",
+                "ô": "o",
+                "õ": "o",
+                "ú": "u",
+                "ü": "u",
+                "ç": "c",
+            }
+        )
+        return text.lower().translate(replacements)
+
+    def _is_dc_charging_map_request(self, text: str) -> bool:
+        """Detect requests about DC fast charging locations."""
+        normalized = f" {self._normalize_text(text)} "
+        dc_signals = [
+            " dc ",
+            " carga rapida ",
+            " carregamento rapido ",
+            " recarga rapida ",
+            " carregador rapido ",
+            " carregadores rapidos ",
+            " eletroposto dc ",
+            " pontos dc ",
+            " ponto dc ",
+        ]
+        locator_signals = [
+            " onde ",
+            " local ",
+            " locais ",
+            " mapa ",
+            " mapas ",
+            " encontrar ",
+            " perto ",
+            " proximo ",
+            " proximos ",
+            " brasil ",
+        ]
+        if any(signal in normalized for signal in dc_signals):
+            return True
+        return (
+            (" carregador " in normalized or " recarga " in normalized or " carga " in normalized)
+            and any(signal in normalized for signal in locator_signals)
+            and " ac " not in normalized
+        )
+
+    def _dc_charging_map_response(self, message_type: str, max_length: int) -> str:
+        """Return a deterministic reply for DC charging map requests."""
+        if message_type == "comment":
+            text = "O Guia PBEV tem um mapa do Brasil com varios pontos de recarga DC. Veja no Guia PBEV: guiapbev.cloud"
+        else:
+            text = "O Guia PBEV tem uma funcionalidade com mapa do Brasil e varios pontos de recarga DC. Veja no Guia PBEV: guiapbev.cloud"
+        return self._truncate_response(text, max_length)
 
     def _get_recent_history(self, user_id: str, limit: int = 5) -> list[dict]:
         """Load recent DM history for context."""
