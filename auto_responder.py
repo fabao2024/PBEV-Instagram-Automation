@@ -1,6 +1,7 @@
 """Auto responder for Instagram DMs and comments."""
 
 import logging
+import re
 
 from google import genai
 from google.genai import types
@@ -119,7 +120,11 @@ class AutoResponder:
     ) -> str | None:
         """Generate a reply with Gemini and truncate to the target length."""
         if self._is_dc_charging_map_request(message):
-            return self._dc_charging_map_response(message_type=message_type, max_length=max_length)
+            return self._dc_charging_map_response(
+                message=message,
+                message_type=message_type,
+                max_length=max_length,
+            )
 
         system = f"""{PBEV_SYSTEM_CONTEXT}
 
@@ -233,16 +238,32 @@ REGRAS ADICIONAIS PARA RESPOSTAS AUTOMATICAS:
     def _is_dc_charging_map_request(self, text: str) -> bool:
         """Detect requests about DC fast charging locations."""
         normalized = f" {self._normalize_text(text)} "
-        dc_signals = [
+        fast_charge_signals = [
             " dc ",
             " carga rapida ",
             " carregamento rapido ",
             " recarga rapida ",
             " carregador rapido ",
             " carregadores rapidos ",
+            " carga ultrarrapida ",
+            " carregamento ultrarrapido ",
+            " recarga ultrarrapida ",
             " eletroposto dc ",
             " pontos dc ",
             " ponto dc ",
+        ]
+        charging_signals = [
+            " carregamento ",
+            " recarga ",
+            " carregador ",
+            " carregadores ",
+            " eletroposto ",
+            " eletropostos ",
+            " ponto de recarga ",
+            " pontos de recarga ",
+            " ponto de carregamento ",
+            " pontos de carregamento ",
+            " carga ",
         ]
         locator_signals = [
             " onde ",
@@ -251,26 +272,61 @@ REGRAS ADICIONAIS PARA RESPOSTAS AUTOMATICAS:
             " mapa ",
             " mapas ",
             " encontrar ",
+            " encontro ",
             " perto ",
             " proximo ",
             " proximos ",
             " brasil ",
+            " cidade ",
+            " cidades ",
+            " rota ",
+            " rotas ",
         ]
-        if any(signal in normalized for signal in dc_signals):
+        if any(signal in normalized for signal in fast_charge_signals):
             return True
+        has_location_hint = self._extract_location_hint(text) is not None
         return (
-            (" carregador " in normalized or " recarga " in normalized or " carga " in normalized)
-            and any(signal in normalized for signal in locator_signals)
+            any(signal in normalized for signal in charging_signals)
+            and (any(signal in normalized for signal in locator_signals) or has_location_hint or "?" in (text or ""))
             and " ac " not in normalized
         )
 
-    def _dc_charging_map_response(self, message_type: str, max_length: int) -> str:
+    def _dc_charging_map_response(self, message: str, message_type: str, max_length: int) -> str:
         """Return a deterministic reply for DC charging map requests."""
+        location_hint = self._extract_location_hint(message)
+        location_pt = f" por {location_hint}" if location_hint else ""
         if message_type == "comment":
-            text = "O Guia PBEV tem um mapa do Brasil com varios pontos de recarga DC. Veja no Guia PBEV: guiapbev.cloud"
+            text = (
+                "O Guia PBEV tem um mapa do Brasil com varios pontos de recarga rapida/DC. "
+                f"Busque{location_pt} no guiapbev.cloud. Nem todos os pontos DC estao mapeados, pois a disponibilizacao desses dados e limitada."
+            )
         else:
-            text = "O Guia PBEV tem uma funcionalidade com mapa do Brasil e varios pontos de recarga DC. Veja no Guia PBEV: guiapbev.cloud"
+            text = (
+                "O Guia PBEV tem uma funcionalidade com mapa do Brasil e varios pontos de recarga rapida/DC. "
+                f"Voce pode buscar{location_pt} no guiapbev.cloud. Nem todos os pontos DC estao mapeados, pois a disponibilizacao desses dados e limitada."
+            )
         return self._truncate_response(text, max_length)
+
+    def _extract_location_hint(self, text: str) -> str | None:
+        """Extract a city or location fragment from charging-location questions."""
+        raw_text = (text or "").strip()
+        if not raw_text:
+            return None
+
+        patterns = [
+            r"\bem\s+([A-Za-zÀ-ÿ0-9' .-]{2,40})(?:\?|!|,|\.|$)",
+            r"\bno\s+([A-Za-zÀ-ÿ0-9' .-]{2,40})(?:\?|!|,|\.|$)",
+            r"\bna\s+([A-Za-zÀ-ÿ0-9' .-]{2,40})(?:\?|!|,|\.|$)",
+            r"\bperto de\s+([A-Za-zÀ-ÿ0-9' .-]{2,40})(?:\?|!|,|\.|$)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, raw_text, flags=re.IGNORECASE)
+            if not match:
+                continue
+            location = match.group(1).strip(" .,!?:;-")
+            if location:
+                return location
+        return None
 
     def _get_recent_history(self, user_id: str, limit: int = 5) -> list[dict]:
         """Load recent DM history for context."""
