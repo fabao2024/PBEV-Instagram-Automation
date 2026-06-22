@@ -38,7 +38,7 @@ def build_tracked_url(
         &utm_campaign=tco_insight&utm_content=post_42
 
     Args:
-        path: Caminho no site (ex: "/", "/simulador-tco", "/comparador").
+        path: Caminho no site (ex: "/", "/simulador-tco").
         category: Categoria do post (vira utm_campaign).
         post_id: ID do post na fila (vira utm_content).
         campaign_name: Override para utm_campaign.
@@ -62,8 +62,8 @@ def build_tracked_url(
 # Mapeamento de categoria → melhor página destino
 CATEGORY_LANDING_PAGES = {
     "modelo_destaque": "/",
-    "comparativo": "/comparador",
-    "dica_ev": "/",
+    "comparativo": "/simulador-tco",
+    "dica_ev": "/simulador-tco",
     "tco_insight": "/simulador-tco",
     "noticia_mercado": "/",
     "geral": "/",
