@@ -229,6 +229,71 @@ class InstagramPublisher:
             logger.info("Carousel publicado! Media ID: %s (%s imagens)", media_id, len(image_urls))
             return {"media_id": media_id, "status": "published", "images": len(image_urls)}
 
+    async def publish_reel_post(
+        self,
+        video_url: str,
+        caption: str,
+        hashtags: str = "",
+    ) -> dict:
+        """Publica um Reel no Instagram via Meta Graph API.
+
+        Fluxo:
+        1. POST /media com media_type=REELS + video_url
+        2. Poll status ate FINISHED (video processing)
+        3. POST /media_publish
+
+        Args:
+            video_url: URL pública do MP4 (vertical 1080x1920).
+            caption: Legenda do reel.
+            hashtags: Hashtags adicionais.
+
+        Returns:
+            Dict com media_id e status.
+        """
+        full_caption = f"{caption}\n\n{hashtags}".strip()
+        if len(full_caption) > INSTAGRAM_CAPTION_LIMIT:
+            raise ValueError(
+                f"legenda excede o limite do Instagram: {len(full_caption)} > {INSTAGRAM_CAPTION_LIMIT}"
+            )
+
+        parsed = urlparse(video_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError(f"video_url invalida: {video_url}")
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            # Step 1: Criar container de midia REELS
+            container_response = await client.post(
+                f"{GRAPH_API_BASE}/{self.ig_account_id}/media",
+                data={
+                    **self._base_params,
+                    "media_type": "REELS",
+                    "video_url": video_url,
+                    "caption": full_caption,
+                },
+            )
+            if container_response.is_error:
+                _raise_meta_error(container_response, "Criacao do container de Reels")
+            container_id = container_response.json()["id"]
+            logger.info("📦 Reel container criado: %s", container_id)
+
+            # Step 2: Aguardar processamento (videos demoram mais)
+            await self._wait_for_container(client, container_id, max_retries=20)
+
+            # Step 3: Publicar
+            publish_response = await client.post(
+                f"{GRAPH_API_BASE}/{self.ig_account_id}/media_publish",
+                data={
+                    **self._base_params,
+                    "creation_id": container_id,
+                },
+            )
+            if publish_response.is_error:
+                _raise_meta_error(publish_response, f"Publicacao do Reel {container_id}")
+            media_id = publish_response.json()["id"]
+
+            logger.info("🎬 Reel publicado! Media ID: %s", media_id)
+            return {"media_id": media_id, "status": "published", "type": "reel"}
+
     async def reply_to_comment(self, comment_id: str, message: str) -> dict:
         """Responde a um comentario no Instagram."""
         async with httpx.AsyncClient(timeout=30) as client:

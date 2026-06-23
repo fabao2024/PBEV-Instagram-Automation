@@ -3,7 +3,7 @@
 NÃO EDITE MANUALMENTE. Rode sync_catalog.py para atualizar.
 
 Fonte: https://github.com/fabao2024/Guia-PBEV-Brasil/blob/main/src/constants.ts
-Última sync: 2026-06-04 11:55:05
+Última sync: 2026-06-22 15:04:53
 Veículos: 97 | Marcas: 30 | Faixa: R$99,990–R$1,321,950
 """
 

@@ -101,11 +101,19 @@ async def publish_due_posts():
                 session.commit()
                 continue
 
-            result = await publisher.publish_image_post(
-                image_url=post.image_url,
-                caption=post.caption,
-                hashtags=post.hashtags,
-            )
+            # Route by post_type: reel -> publish_reel_post, else -> publish_image_post
+            if post.post_type == "reel" and post.image_url:
+                result = await publisher.publish_reel_post(
+                    video_url=post.image_url,
+                    caption=post.caption,
+                    hashtags=post.hashtags,
+                )
+            else:
+                result = await publisher.publish_image_post(
+                    image_url=post.image_url,
+                    caption=post.caption,
+                    hashtags=post.hashtags,
+                )
             post.published = True
             post.published_at = now
             post.ig_media_id = result.get("media_id")

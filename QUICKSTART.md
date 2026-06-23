@@ -2,24 +2,6 @@
 
 Guia curto para subir, validar e operar o bot em uma VPS Ubuntu.
 
-## Regra de edicao local
-
-Fonte da verdade do codigo:
-- sempre editar primeiro os arquivos da raiz do projeto
-- quando existir arquivo espelhado em `PBEV-Instagram-Automation-push-temp/`, portar a mesma mudanca para ele no mesmo ciclo
-- nao deixar ajuste aplicado so no `push-temp`
-
-Fluxo obrigatorio quando houver arquivos duplicados:
-1. editar e validar na raiz
-2. espelhar a mudanca equivalente no `PBEV-Instagram-Automation-push-temp/`
-3. rodar `python -m py_compile` nos dois arquivos alterados
-4. subir para a VPS apenas depois dos diretorios estarem alinhados
-
-Exemplo:
-- se mudar `auto_responder.py`, atualizar `./auto_responder.py` primeiro e depois `./PBEV-Instagram-Automation-push-temp/auto_responder.py`
-- se mudar `main.py`, seguir a mesma regra
-- a VPS em `/opt/pbev-instagram-bot` deve receber o arquivo vindo do fluxo alinhado, nao um ajuste isolado
-
 ## 1. Enviar o projeto
 
 ```bash
@@ -153,8 +135,6 @@ Lembrete:
 - o scheduler so publica posts com imagem
 - se um post estiver sem `image_url`, ele fica parado na fila
 - se um post ja estiver vencido e voce gerar a imagem depois, ele pode publicar no proximo ciclo
-- a geracao semanal automatica cria 4 posts por semana: segunda, quarta, sexta e sabado
-- a geracao semanal automatica nao cria novos posts se ja existir backlog pendente na fila
 
 ## 10. Comandos do dia a dia
 
@@ -177,29 +157,11 @@ python manage_queue.py --stats
 # Preview HTML de um post
 python manage_queue.py --preview 5
 
-# Listar replies/comentarios rastreados de um post publicado
-python manage_comments.py --list --post-id 51
-
-# Inspecionar um log especifico de comentario
-python manage_comments.py --show 132
-
-# Apagar a reply ruim e republicar uma nova usando a logica atual do bot
-python manage_comments.py --repair 132
-
-# Apagar a reply ruim e republicar um texto manual
-python manage_comments.py --repair 132 --message "Texto revisado"
-
-# Apagar somente a reply atual
-python manage_comments.py --delete-reply 132
-
 # Gerar imagens faltantes
 python manage_queue.py --generate-images
 
 # Reaplicar correcoes atuais aos pendentes e reagendar
 python manage_queue.py --refresh-pending --start-at "2026-04-02 09:00" --interval-hours 24
-
-# Rebalancear pendentes com no maximo 1 post por dia
-python manage_queue.py --rebalance-pending --start-at "2026-04-21 08:30"
 
 # Reagendar
 python manage_queue.py --reschedule 5 "2026-04-01 10:00"
@@ -226,53 +188,6 @@ python manage_queue.py --reset-post 7
 
 # Regenerar um comparativo com tema explicito
 python manage_queue.py --reset-post 7 --topic "GWM Ora 03 Skin BEV48 vs BYD Dolphin GS"
-```
-
-## 11A. Validar diversidade diaria da fila
-
-Para garantir que nenhum dia com posts pendentes tenha categoria repetida:
-
-```bash
-python - <<'PY'
-from collections import Counter, defaultdict
-from database import get_session, ScheduledPost
-
-session = get_session()
-posts = (
-    session.query(ScheduledPost)
-    .filter(ScheduledPost.published == False)
-    .order_by(ScheduledPost.scheduled_at, ScheduledPost.id)
-    .all()
-)
-
-by_day = defaultdict(list)
-for post in posts:
-    day = post.scheduled_at.strftime("%Y-%m-%d")
-    by_day[day].append((post.id, post.category, post.scheduled_at.strftime("%H:%M")))
-
-found = False
-for day, items in sorted(by_day.items()):
-    counts = Counter(category for _, category, _ in items)
-    duplicates = {category: total for category, total in counts.items() if total > 1}
-    if duplicates:
-        found = True
-        print(f"ERRO {day}: categorias repetidas -> {duplicates}")
-        for item in items:
-            print(" ", item)
-
-if not found:
-    print("OK: nenhum dia com posts pendentes tem categoria repetida.")
-
-session.close()
-PY
-```
-
-Quando houver repeticao na fila real ou varios posts no mesmo dia:
-
-```bash
-python manage_queue.py --rebalance-pending --start-at "2026-04-21 08:30"
-python manage_queue.py --list
-sudo systemctl restart pbev-instagram-bot
 ```
 
 ## 12. Sync do catalogo

@@ -4,27 +4,17 @@ __pycache__/
 *.egg-info/
 venv/
 .venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
 # Environment
 .env
-.env.local
-.env.*.local
 
 # Database
 *.db
-*.db-*
 *.sqlite3
-*.sqlite
-*.sqlite-*
 
 # Generated images
 generated_images/
 assets/vehicles/
-tmp/
-temp/
 
 # IDE
 .vscode/
@@ -36,12 +26,14 @@ Thumbs.db
 
 # Logs
 *.log
-devlog.md
 
-# OS / local metadata
-Desktop.ini
+# Backup files
+*.bak*
+*.bak-*
 
-# Credentials / certificates
-*.pem
-*.key
-*.crt
+# One-off scripts
+fill_june_queue.py
+
+# Large binary assets
+logo-pbev.png
+generated_reels/

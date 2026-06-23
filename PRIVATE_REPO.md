@@ -9,7 +9,6 @@ Este projeto esta pronto para virar um repositorio privado, mas o push inicial d
 - `.env.example`
 - configs de `systemd` e Nginx como referencia
 - scripts de setup, deploy e diagnostico
-- `.codex/skills/` se voce quiser versionar o contexto interno de desenvolvimento com Codex
 
 ## O que nao deve ir para git
 
@@ -101,24 +100,11 @@ Se o acesso SSH estiver funcionando, prefira sempre `git@github.com:...` no remo
 Em algumas VPS este projeto pode estar em `/opt/pbev-instagram-bot` sem `.git`.
 Nesse caso, `deploy.sh` apenas reinstala dependencias e reinicia o servico; ele nao baixa codigo novo.
 
-Observacao:
-- `.codex/skills/` nao faz parte do runtime do bot
-- essa pasta nao precisa ser copiada para a VPS para a automacao funcionar
-- ela so e util para reaproveitar o mesmo contexto de desenvolvimento assistido por Codex
-
 Fluxo operacional recomendado:
 
 1. editar e validar localmente
-2. usar a raiz do projeto como fonte da verdade
-3. se existir copia em `PBEV-Instagram-Automation-push-temp/`, espelhar a mesma mudanca antes do deploy
-4. validar com `python -m py_compile` nos arquivos alterados na raiz e no `push-temp`
-5. copiar arquivos alterados com `scp`
-6. rodar `bash deploy.sh` na VPS
-
-Regra permanente:
-- nunca aplicar uma correcao somente em `PBEV-Instagram-Automation-push-temp/`
-- toda manutencao deve nascer na raiz e terminar com os diretorios alinhados
-- se os dois diretorios divergirem, corrija a raiz primeiro e depois replique a mudanca compativel no `push-temp`
+2. copiar arquivos alterados com `scp`
+3. rodar `bash deploy.sh` na VPS
 
 Exemplo real:
 
